@@ -151,6 +151,9 @@ func runSession(p1, p2 *clientConn) {
 
 	moves := make(chan move)
 	done := make(chan *clientConn, 2)
+	idleTimeout := 5 * time.Minute
+	timer := time.NewTimer(idleTimeout)
+	defer timer.Stop()
 
 	// Reader goroutines forward moves and notify on disconnect.
 	go readLoop(p1, moves, done)
@@ -162,12 +165,17 @@ func runSession(p1, p2 *clientConn) {
 			if mv.player == nil {
 				continue
 			}
+			if !timer.Stop() {
+				<-timer.C
+			}
 			// Apply the move and broadcast authoritative state.
 			if err := g.ApplyMove(mv.row, mv.col, mv.player.player); err != nil {
 				mv.player.sendMsg(protocol.Message{Type: protocol.TypeError, Error: err.Error()})
+				timer.Reset(idleTimeout)
 				continue
 			}
 			broadcastState(g, p1, p2)
+			timer.Reset(idleTimeout)
 			if g.Status != game.StatusInProgress {
 				p1.close()
 				p2.close()
@@ -186,6 +194,20 @@ func runSession(p1, p2 *clientConn) {
 				Status: game.StatusAbandoned,
 				Error:  "opponent disconnected",
 			})
+			time.Sleep(100 * time.Millisecond)
+			p1.close()
+			p2.close()
+			return
+		case <-timer.C:
+			msg := protocol.Message{
+				Type:   protocol.TypeState,
+				Board:  g.BoardString(),
+				Turn:   string(g.Next),
+				Status: game.StatusAbandoned,
+				Error:  "session idle timeout",
+			}
+			p1.sendMsg(msg)
+			p2.sendMsg(msg)
 			time.Sleep(100 * time.Millisecond)
 			p1.close()
 			p2.close()
