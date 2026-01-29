@@ -51,6 +51,8 @@ func main() {
 					playerTag = "Player 1"
 				}
 				fmt.Printf("You are %s (%s)\n", myPlayer, playerTag)
+				fmt.Println("How to play: enter moves as `row col` (0-2). Example: 1 2")
+				fmt.Println("Goal: get three in a row horizontally, vertically, or diagonally.")
 			case protocol.TypeState:
 				// Server sends authoritative state after each move.
 				status = msg.Status
@@ -70,6 +72,8 @@ func main() {
 				}
 				if myPlayer != "" && myPlayer == currentTurn {
 					fmt.Print("Your move (row col): ")
+				} else if myPlayer != "" {
+					fmt.Printf("Opponent's turn (%s). Please wait...\n", currentTurn)
 				}
 			case protocol.TypeError:
 				fmt.Printf("Error: %s\n", msg.Error)
@@ -118,6 +122,7 @@ func printBoard(board string) {
 		fmt.Println("board unavailable")
 		return
 	}
+	fmt.Println("Legend: X (Player 1), O (Player 2)")
 	fmt.Println("Board:")
 	for r := 0; r < 3; r++ {
 		row := board[r*3 : r*3+3]
